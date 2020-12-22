@@ -79,7 +79,7 @@ class Spectrogram:
         return self.im,
 
     def start_playing_music(self):
-        self.file_path = "/home/askvortsov/labs/sounds_expl/test0/wave.wav"
+        self.file_path = "/home/askvortsov/labs/sounds_expl/test0/song1.wav"
         self.sample, self.sample_rate = librosa.load(self.file_path)
         self.sample_time = np.arange(0, len(self.sample)) / self.sample_rate 
         self.wave_file = wave.open(self.file_path, 'rb')
