@@ -2,15 +2,12 @@ import sys
 import os
 import wave
 import time
+import argparse
 
 import librosa
 import librosa.display
 import pyaudio
 import struct
-
-from PyQt5 import QtWidgets
-
-from ui_app import Ui_MainWindow
 
 from scipy.io import wavfile
 import scipy.io.wavfile as wav
@@ -35,10 +32,11 @@ class Spectrogram:
         self.sample = None
         self.sample_rate = None
         self.sample_time = None
-        self.samples_per_frame = 100
+        self.samples_per_frame = 10
         self.wave_file = None
+        self.MODE = 'psd'
 
-        self.CHUNK = 8000
+        self.CHUNK = 4096
         self.overlap = 512
         self.nfft = 1024
 
@@ -57,29 +55,29 @@ class Spectrogram:
         return data
 
     def get_spectrogram(self, data):
-        arr2D, freqs, bins = specgram(data, 
+        spectrum, freqs, t = specgram(data, 
             window=window_hanning,
             Fs=self.sample_rate,
             NFFT=self.nfft,
             noverlap=self.overlap)
-        return arr2D, freqs, bins
+        return spectrum, freqs, t
 
     def update_figure(self, n):
         data = self.get_data(self.stream)
-        arr2D,freqs,bins = self.get_spectrogram(data)
+        spectrum, freqs, t = self.get_spectrogram(data)
         im_data = self.im.get_array()
         if n < self.samples_per_frame:
-            im_data = np.hstack((im_data,arr2D))
+            im_data = np.hstack((im_data,spectrum))
             self.im.set_array(im_data)
         else:
-            keep_block = arr2D.shape[1]*(self.samples_per_frame - 1)
+            keep_block = spectrum.shape[1]*(self.samples_per_frame - 1)
             im_data = np.delete(im_data,np.s_[:-keep_block],1)
-            im_data = np.hstack((im_data,arr2D))
+            im_data = np.hstack((im_data,spectrum))
             self.im.set_array(im_data)
         return self.im,
 
-    def start_playing_music(self):
-        self.file_path = "/home/askvortsov/labs/sounds_expl/test0/song1.wav"
+    def start_playing_music(self, url):
+        self.file_path = url
         self.sample, self.sample_rate = librosa.load(self.file_path)
         self.sample_time = np.arange(0, len(self.sample)) / self.sample_rate 
         self.wave_file = wave.open(self.file_path, 'rb')
@@ -87,23 +85,20 @@ class Spectrogram:
         try:
             print("[Launching Streaming]")
             self.stream = self.stream_wave()
-            arr2D,freqs,bins = specgram(self.get_data(self.stream),
-                
-                Fs = self.sample_rate,
-                NFFT=self.nfft,
-                noverlap=self.overlap)
-            extent = (bins[0], bins[-1] * self.samples_per_frame, freqs[-1], freqs[0])
-            self.im = plt.imshow(arr2D,
+            spectrum, freqs, t = self.get_spectrogram(self.get_data(self.stream))
+
+            extent = (t[0], t[-1] * self.samples_per_frame, freqs[-1], freqs[0])
+            self.im = plt.imshow(spectrum,
                 aspect="auto",
                 extent = extent,
                 interpolation="none",
-                cmap = "jet",
+                cmap = "viridis",
                 norm = LogNorm(vmin=.01,vmax=1))
             plt.xlabel("Time (seconds)")
             plt.ylabel("Frequency (Hz)")
             plt.title("Streaming Spectrogram")
             plt.gca().invert_yaxis()
-            plt.colorbar() #enable if you want to display a color bar
+            plt.colorbar()
             anim = animation.FuncAnimation(self.fig,
                 self.update_figure,
                 blit = False,
@@ -118,7 +113,14 @@ class Spectrogram:
             self.paudio.terminate()
             print("[Program Closed]")
 
+class Parser:
+    def createParser(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument('url')
+        return parser
 
 if "__main__" == __name__:
-	am = Spectrogram()
-	am.start_playing_music()
+    parser = Parser().createParser()
+    namespace = parser.parse_args(sys.argv[1:])
+    spec = Spectrogram()
+    spec.start_playing_music(namespace.url)
